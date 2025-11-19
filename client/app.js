@@ -241,7 +241,7 @@ const i18n = {
     save: "حفظ",
     settingsTitle: "الحساب والإعدادات",
     profile: "الملف الشخصي",
-    id: "المعرف",
+    id: "المعرّف",
     name: "الاسم",
     email: "البريد الإلكتروني",
     broker: "شركة التداول",
@@ -330,6 +330,419 @@ const i18n = {
     xmLinked: "Verbunden",
     xmNote: "Deine QL Wallet ist mit der XM-Trading-Infrastruktur verbunden."
   }
+};
+
+function t(key){
+  const lang = state.lang;
+  return (i18n[lang] && i18n[lang][key]) || (i18n.en[key]||key);
+}
+function applyI18n(){
+  document.querySelectorAll("[data-i18n]").forEach(el=>{
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.body.dir = (state.lang === "ar") ? "rtl" : "ltr";
+}
+
+const $ = (q)=>document.querySelector(q);
+const $$ = (q)=>document.querySelectorAll(q);
+
+// Splash fade then gate
+setTimeout(()=> { $("#splash")?.classList.add("hidden"); }, 1800);
+
+const cleanKeyInput = (value = "") => extractKeyCandidates(value)[0] || "";
+
+// Setup TG id
+function detectTG(){
+  try{
+    const initDataUnsafe = TWA?.initDataUnsafe;
+    const tgId = initDataUnsafe?.user?.id || null;
+    state.tg_id = tgId;
+  }catch{ state.tg_id = null; }
+}
+
+// Token (optional)
+async function getToken(){
+  if(!state.tg_id) return;
+  const r = await fetch("/api/token",{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({tg_id: state.tg_id})}).then(r=>r.json());
+  if(r.ok) state.token = r.token;
+}
+
+// Activate
+const gateBtn = $("#g-activate");
+gateBtn?.addEventListener("click", async ()=>{
+  if(gateBtn.disabled) return;
+  const rawKey = $("#g-key").value || "";
+  const candidates = extractKeyCandidates(rawKey);
+  const key = candidates[0] || cleanKeyInput(rawKey);
+  const name = $("#g-name").value.trim();
+  const email = $("#g-email").value.trim();
+  if(!key) return toast("Enter key");
+  const tg_id = state.tg_id || Number(prompt("Enter Telegram ID (test):","1262317603"));
+  if(!tg_id){ toast("Missing Telegram ID"); return; }
+  const initData = TWA?.initData || null;
+  const payload = { key, rawKey, candidates, tg_id, name, email, initData };
+
+  const restore = gateBtn.textContent;
+  gateBtn.disabled = true;
+  gateBtn.textContent = "...";
+
+  try{
+    const r = await fetch("/api/activate",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(payload)
+    }).then(r=>r.json());
+    if(!r?.ok){
+      toast(r?.error || "Invalid key");
+      return;
+    }
+    state.user = r.user;
+    localStorage.setItem("tg", r.user.tg_id);
+    hydrateUser(r.user);
+    unlockGate();
+    $("#g-key").value = "";
+    if(r.reused){ notify("🔓 Session restored"); }
+    const opened = await openApp(r.user);
+    // Store session permanently
+    localStorage.setItem("activated", "yes");
+
+    // Remove gate visually
+    document.body.classList.remove("is-gated");
+    const gateEl = document.querySelector(".gate");
+    if(gateEl){
+        gateEl.classList.add("hidden");
+        gateEl.style.pointerEvents = "none";
+    }
+
+    if(!opened){
+      showGate();
+      toast("Unable to open wallet");
+    }
+  }catch(err){
+    console.error("Activation failed", err);
+    toast("Connection error");
+  }finally{
+    gateBtn.disabled = false;
+    gateBtn.textContent = restore;
+  }
+});
+function toast(msg){ const el=$("#g-toast"); el.textContent=msg; setTimeout(()=> el.textContent="", 2500); }
+
+function showGate(){
+  if(state.feedTimer){ clearInterval(state.feedTimer); state.feedTimer = null; }
+  document.body.classList.add("is-gated");
+  $(".gate")?.classList.remove("hidden");
+  $("#app")?.classList.add("hidden");
+}
+
+function unlockGate(){
+  document.body.classList.remove("is-gated");
+  $(".gate")?.classList.add("hidden");
+  $("#app")?.classList.remove("hidden");
+}
+
+// App open
+async function openApp(user = null, { auto = false } = {}){
+  if(user){
+    state.user = user;
+    hydrateUser(user);
+  }
+  if(!state.user?.tg_id){
+    if(!auto) toast("Please sign in again");
+    showGate();
+    return false;
+  }
+  if(!user){
+    try{
+      await refreshUser(true);
+    }catch(err){
+      console.warn("Failed to refresh session", err);
+      state.user = null;
+      localStorage.removeItem("tg");
+      showGate();
+      return false;
+    }
+  }
+  unlockGate();
+  applyI18n();
+  if(user){
+    refreshUser();
+  }
+  startFeed();
+  refreshOps();
+  refreshRequests();
+  refreshMarkets();
+  return true;
+}
+
+// Tabs
+$$(".seg-btn").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    $$(".seg-btn").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    const tab = btn.dataset.tab;
+    $$(".tab").forEach(s=>s.classList.remove("show"));
+    $(`#tab-${tab}`)?.classList.add("show");
+  });
+});
+
+$("#goWithdraw").onclick = ()=>{ document.querySelector('[data-tab="withdraw"]').click(); }
+$("#goMarkets").onclick  = ()=>{ document.querySelector('[data-tab="markets"]').click(); }
+$("#goSupport").onclick  = ()=>{ document.querySelector('[data-tab="support"]').click(); }
+
+// Language
+$("#btnLang").addEventListener("click", ()=>{
+  const order = ["en","ar","tr","de"];
+  const idx = order.indexOf(state.lang);
+  state.lang = order[(idx+1)%order.length];
+  localStorage.setItem("lang", state.lang);
+  applyI18n();
+});
+
+// Settings panel
+const settingsPanel = $("#settingsPanel");
+const settingsBackdrop = $("#settingsBackdrop");
+const btnSettings = $("#btnSettings");
+const spClose = $("#spClose");
+
+function openSettings(){
+  if(!settingsPanel) return;
+  settingsPanel.classList.remove("hidden");
+  settingsPanel.classList.add("show");
+  settingsBackdrop?.classList.remove("hidden");
+  settingsBackdrop?.classList.add("show");
+}
+
+function closeSettings(){
+  settingsPanel?.classList.remove("show");
+  settingsBackdrop?.classList.remove("show");
+  setTimeout(()=>{
+    settingsPanel?.classList.add("hidden");
+    settingsBackdrop?.classList.add("hidden");
+  },200);
+}
+
+btnSettings?.addEventListener("click", openSettings);
+spClose?.addEventListener("click", closeSettings);
+settingsBackdrop?.addEventListener("click", closeSettings);
+
+// Withdraw sheet
+const sheet = $("#sheet");
+$("#pickMethod").addEventListener("click", ()=> sheet.classList.add("show"));
+$("#sCancel").addEventListener("click", ()=> sheet.classList.remove("show"));
+$$(".s-item").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    state.method = b.dataset.method;
+    $("#methodLabel").textContent = b.textContent;
+    renderMethod();
+    sheet.classList.remove("show");
+  });
+});
+
+function renderMethod(){
+  const map = {
+    usdt_trc20: "USDT (TRC20)",
+    usdt_erc20: "USDT (ERC20)",
+    btc: "Bitcoin",
+    eth: "Ethereum"
+  };
+  $("#methodLabel").textContent = map[state.method] || "USDT (TRC20)";
+  $("#methodView").innerHTML = `
+    <div class="muted">Saved address:</div>
+    <input id="addr" class="input" placeholder="Your ${map[state.method]||'Wallet'} address..."/>
+    <button id="saveAddr" class="btn">Save</button>
+  `;
+  $("#saveAddr").onclick = async ()=>{
+    const address = $("#addr").value.trim();
+    const tg = state.user?.tg_id || Number(localStorage.getItem("tg"));
+    await fetch("/api/withdraw/method",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({tg_id:tg, method:state.method, address})
+    });
+    notify("✅ Address saved");
+  }
+}
+renderMethod();
+
+$("#reqWithdraw").addEventListener("click", async ()=>{
+  const tg = state.user?.tg_id || Number(localStorage.getItem("tg"));
+  const amount = Number($("#amount").value || 0);
+  if(amount<=0) return notify("Enter amount");
+  const r = await fetch("/api/withdraw",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({tg_id:tg, amount, method: state.method})
+  }).then(r=>r.json());
+  if(!r.ok) return notify("❌ "+(r.error||"Error"));
+  notify("✅ Request sent");
+  refreshUser(); refreshRequests();
+});
+
+// WhatsApp deposit
+$("#whatsapp").onclick = ()=> window.open("https://wa.me/message/P6BBPSDL2CC4D1","_blank");
+
+// Data
+function hydrateUser(user){
+  if(!user) return;
+  const balance = Number(user.balance || 0);
+  $("#balance").textContent = "$" + balance.toFixed(2);
+  $("#subLeft").textContent = user.sub_expires ? new Date(user.sub_expires).toLocaleDateString() : "—";
+
+  // Reset ticker to neutral (no fake movement)
+  const tickerEl = $("#ticker");
+  if(tickerEl){
+    tickerEl.textContent = "+0.00";
+    tickerEl.style.color = "#9df09d";
+  }
+
+  // Settings profile data
+  const name = user.name || user.first_name || "";
+  const email = user.email || "";
+  const tgId = user.tg_id || user.id || "";
+  const spTgId = $("#spTgId");
+  const spName = $("#spName");
+  const spEmail = $("#spEmail");
+  if(spTgId) spTgId.textContent = tgId || "—";
+  if(spName) spName.textContent = name || "—";
+  if(spEmail) spEmail.textContent = email || "—";
+}
+async function refreshUser(required = false){
+  const tg = state.user?.tg_id || Number(localStorage.getItem("tg"));
+  if(!tg){
+    if(required) throw new Error("missing_tg");
+    return false;
+  }
+  let payload = null;
+  try{
+    payload = await fetch(`/api/user/${tg}`).then(r=>r.json());
+  }catch(err){
+    if(required) throw err;
+    return false;
+  }
+  if(payload?.ok){
+    state.user = payload.user;
+    hydrateUser(payload.user);
+    return true;
+  }
+  if(required) throw new Error(payload?.error || "user_not_found");
+  return false;
+}
+
+async function refreshOps(){
+  const tg = state.user?.tg_id || Number(localStorage.getItem("tg"));
+  if(!tg) return;
+  const r = await fetch(`/api/ops/${tg}`).then(r=>r.json());
+  const box = $("#ops"); box.innerHTML = "";
+  if(r.ok){
+    r.list.forEach(o=>{
+      const div = document.createElement("div");
+      div.className="op";
+      div.innerHTML = `<span>${o.type||'op'}</span><b>${Number(o.amount).toFixed(2)}</b>`;
+      box.appendChild(div);
+    });
+  }
+}
+
+async function refreshRequests(){
+  const tg = state.user?.tg_id || Number(localStorage.getItem("tg"));
+  if(!tg) return;
+  const r = await fetch(`/api/requests/${tg}`).then(r=>r.json());
+  const box = $("#reqList"); box.innerHTML = "";
+  if(r.ok){
+    r.list.forEach(req=>{
+      const div = document.createElement("div");
+      div.className="op";
+      div.innerHTML = `<span>#${req.id} — ${req.method} — ${req.status}</span><b>$${Number(req.amount).toFixed(2)}</b>`;
+      if(req.status==="pending"){
+        const b = document.createElement("button");
+        b.className="btn"; b.style.marginLeft="8px"; b.textContent="Cancel";
+        b.onclick = async ()=>{
+          const tg = state.user?.tg_id || Number(localStorage.getItem("tg"));
+          await fetch("/api/withdraw/cancel",{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({tg_id:tg, id:req.id})});
+          refreshRequests(); refreshUser();
+        };
+        div.appendChild(b);
+      }
+      box.appendChild(div);
+    });
+  }
+}
+
+// Markets
+async function refreshMarkets(){
+  try{
+    const r = await fetch("/api/markets").then(r=>r.json());
+    if(!r.ok) return;
+    $$(".mkt").forEach(card=>{
+      const sym = card.dataset.sym;
+      const price = r.data?.[sym] || 0;
+      card.querySelector(".price").textContent = "$"+Number(price).toFixed(2);
+      // spark fake
+      const c = card.querySelector("canvas");
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0,0,c.width,c.height);
+      ctx.beginPath();
+      let y = 40 + Math.random()*8;
+      ctx.moveTo(0,y);
+      for(let x=0; x<c.width; x+=8){
+        y += (Math.random()-0.5)*4;
+        ctx.lineTo(x,y);
+      }
+      ctx.lineWidth = 2; ctx.strokeStyle = "#7fe0ff";
+      ctx.stroke();
+      // pct
+      const pct = ((Math.random()-.5)*2).toFixed(2);
+      card.querySelector(".pct").textContent = (pct>0?"+":"") + pct + "%";
+      card.querySelector(".pct").style.color = (pct>=0) ? "#9df09d" : "#ff8899";
+    });
+  }catch{}
+}
+
+// Live feed (وهمي كل 20 ثانية)
+const names = ["أحمد","محمد","خالد","سارة","رامي","نور","ليلى","وسيم","حسن","طارق"];
+function startFeed(){
+  if(state.feedTimer) clearInterval(state.feedTimer);
+  const feed = $("#feed");
+  const push = (txt)=>{
+    const it = document.createElement("div");
+    it.className="item"; it.textContent = txt;
+    feed.prepend(it);
+    $("#sndNotify")?.play().catch(()=>{});
+    while(feed.childElementCount>12) feed.lastChild.remove();
+  };
+  const once = ()=>{
+    const r = Math.random();
+    const name = names[Math.floor(Math.random()*names.length)];
+    if(r<0.34){
+      const v = 50+Math.floor(Math.random()*200);
+      push(`🪙 ${name} سحب ${v}$ بنجاح`);
+    }else if(r<0.67){
+      const v = 20+Math.floor(Math.random()*120);
+      const m = ["Gold","BTC","ETH","Silver"][Math.floor(Math.random()*4)];
+      push(`💰 ${name} ربح ${v}$ من صفقة ${m}`);
+    }else{
+      const v = 150+Math.floor(Math.random()*400);
+      push(`🎉 مستخدم جديد انضم وأودع ${v}$`);
+    }
+  };
+  once();
+  state.feedTimer = setInterval(once, 20000);
+}
+
+// Balance ticker is now driven only by real backend values.
+let tickerI = 0;
+async function loadTrades(){
+  const tg = state.user?.tg_id || Number(localStorage.getItem("tg"));
+  // ما في endpoint لائحة، نعرض من ops كتمثيل مبسط:
+  const box = $("#tradesList"); box.innerHTML = "";
+  const div = document.createElement("div");
+  div.className="op";
+  div.innerHTML = `<span>Open trade: XAUUSD</span><b>running...</b>`;
+  box.appendChild(div);
+}
+$("#saveSLTP").onclick = ()=>{
+  notify("✅ SL/TP saved");
 };
 
 // Helpers
