@@ -1,3 +1,5 @@
+
+body { padding-top: calc(env(safe-area-inset-top) + 40px); }
 :root{
   --bg:#0c0b10;
   --card:#12101aee;
