@@ -43,7 +43,7 @@
       <div class="t-row">
         <h1 class="brand">QL Wallet</h1>
         <div class="actions">
-          <button id="btnMusic" class="i-btn" title="Music">🎵</button>
+          <button id="btnSettings" class="i-btn" title="Settings">⚙️</button>
           <button id="btnLang" class="i-btn" title="Languages">🌐</button>
         </div>
       </div>
@@ -84,14 +84,16 @@
           <div class="stat glass"><div data-i18n="subLeft">Subscription</div><b id="subLeft">—</b></div>
         </div>
 
-        <div class="card glass">
-          <div class="c-title" data-i18n="recent">Recent activity</div>
-          <div id="ops" class="ops"></div>
-        </div>
+        <div class="home-lower">
+          <div class="card glass compact">
+            <div class="c-title"><span data-i18n="recent">Recent activity</span><span class="badge" data-i18n="recentSub">Wallet history</span></div>
+            <div id="ops" class="ops"></div>
+          </div>
 
-        <div class="card glass">
-          <div class="c-title" data-i18n="live">Live feed</div>
-          <div id="feed" class="feed"></div>
+          <div class="card glass compact">
+            <div class="c-title"><span data-i18n="live">Live feed</span><span class="badge" data-i18n="liveSub">QL Trading feed</span></div>
+            <div id="feed" class="feed"></div>
+          </div>
         </div>
       </section>
 
@@ -166,6 +168,36 @@
     <button class="s-cancel" id="sCancel" data-i18n="cancel">Cancel</button>
   </div>
 
+  <div id="settingsBackdrop" class="settings-backdrop hidden"></div>
+<div id="settingsPanel" class="settings-panel glass hidden">
+  <div class="sp-header">
+    <div class="sp-title" data-i18n="settingsTitle">Account &amp; Settings</div>
+    <button id="spClose" class="i-btn small" aria-label="Close">✕</button>
+  </div>
+  <div class="sp-section">
+    <div class="sp-label" data-i18n="profile">Profile</div>
+    <div class="sp-row">
+      <div class="sp-key" data-i18n="id">ID</div>
+      <div class="sp-value" id="spTgId">—</div>
+    </div>
+    <div class="sp-row">
+      <div class="sp-key" data-i18n="name">Name</div>
+      <div class="sp-value" id="spName">—</div>
+    </div>
+    <div class="sp-row">
+      <div class="sp-key" data-i18n="email">Email</div>
+      <div class="sp-value" id="spEmail">—</div>
+    </div>
+  </div>
+  <div class="sp-section">
+    <div class="sp-label" data-i18n="broker">Broker</div>
+    <div class="sp-broker">
+      <div class="sp-broker-name">XM Trading</div>
+      <div class="sp-broker-badge" data-i18n="xmLinked">Linked</div>
+    </div>
+    <div class="sp-note" data-i18n="xmNote">Your QL Wallet is connected with XM trading infrastructure.</div>
+  </div>
+</div>
   <audio id="sndNotify" src="./notify.mp3" preload="auto"></audio>
 
   <script type="module" src="./app.js"></script>
