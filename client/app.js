@@ -303,6 +303,17 @@ gateBtn?.addEventListener("click", async ()=>{
     $("#g-key").value = "";
     if(r.reused){ notify("🔓 Session restored"); }
     const opened = await openApp(r.user);
+    // Store session permanently
+    localStorage.setItem("activated", "yes");
+
+    // Remove gate visually
+    document.body.classList.remove("is-gated");
+    const gateEl = document.querySelector(".gate");
+    if(gateEl){
+        gateEl.classList.add("hidden");
+        gateEl.style.pointerEvents = "none";
+    }
+
     if(!opened){
       showGate();
       toast("Unable to open wallet");
@@ -639,6 +650,17 @@ function notify(msg){
 // Boot
 (async function(){
   detectTG();
+
+// Auto-skip gate if activated before
+if (localStorage.getItem("activated") === "yes") {
+    document.body.classList.remove("is-gated");
+    const g = document.querySelector(".gate");
+    if(g){
+        g.classList.add("hidden");
+        g.style.pointerEvents = "none";
+    }
+}
+
   await getToken();
   applyI18n();
 
