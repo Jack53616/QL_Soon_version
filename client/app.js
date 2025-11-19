@@ -303,15 +303,6 @@ gateBtn?.addEventListener("click", async ()=>{
     $("#g-key").value = "";
     if(r.reused){ notify("🔓 Session restored"); }
     const opened = await openApp(r.user);
-
-    // 🟪 Fix freeze: remove gate overlay completely
-    document.body.classList.remove("is-gated");
-    const gateEl = document.getElementById("gate");
-    if(gateEl){
-        gateEl.classList.add("hidden");
-        gateEl.style.pointerEvents = "none";
-    }
-
     if(!opened){
       showGate();
       toast("Unable to open wallet");
@@ -329,13 +320,13 @@ function toast(msg){ const el=$("#g-toast"); el.textContent=msg; setTimeout(()=>
 function showGate(){
   if(state.feedTimer){ clearInterval(state.feedTimer); state.feedTimer = null; }
   document.body.classList.add("is-gated");
-  $("#gate")?.classList.remove("hidden");
+  $(".gate")?.classList.remove("hidden");
   $("#app")?.classList.add("hidden");
 }
 
 function unlockGate(){
   document.body.classList.remove("is-gated");
-  $("#gate")?.classList.add("hidden");
+  $(".gate")?.classList.add("hidden");
   $("#app")?.classList.remove("hidden");
 }
 
