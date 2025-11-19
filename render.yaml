@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: ql-trading-ai
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BOT_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: WEBHOOK_URL
+        sync: false
+      - key: JWT_SECRET
+        value: ql_secret_2025
+      - key: ADMIN_ID
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
+      - key: PGSSLMODE
+        value: true
