@@ -254,11 +254,12 @@ body:not(.is-gated) #gate{
   font-size:14px;
 }
 
-/* Home bottom layout: recent activity + live feed */
+/* Home bottom layout */
 .home-lower{
   display:grid;
-  grid-template-columns: minmax(0,1.3fr) minmax(0,1fr);
+  grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);
   gap:12px;
+  margin-top:12px;
 }
 @media (max-width:768px){
   .home-lower{
@@ -280,10 +281,4 @@ body:not(.is-gated) #gate{
   border-radius:999px;
   background:#ffffff12;
   color:var(--muted);
-}
-.op{
-  backdrop-filter: blur(10px);
-}
-.feed .item{
-  backdrop-filter: blur(10px);
 }
