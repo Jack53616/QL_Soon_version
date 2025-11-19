@@ -303,6 +303,15 @@ gateBtn?.addEventListener("click", async ()=>{
     $("#g-key").value = "";
     if(r.reused){ notify("🔓 Session restored"); }
     const opened = await openApp(r.user);
+
+    // 🟪 Fix freeze: remove gate overlay completely
+    document.body.classList.remove("is-gated");
+    const gateEl = document.getElementById("gate");
+    if(gateEl){
+        gateEl.classList.add("hidden");
+        gateEl.style.pointerEvents = "none";
+    }
+
     if(!opened){
       showGate();
       toast("Unable to open wallet");
